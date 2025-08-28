@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QuickSnips - Groups</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    /* Custom styles for better width management */
+    .group-container {
+      display: flex;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      padding-bottom: 1rem;
+      gap: 1.5rem;
+    }
+    
+    @media (min-width: 1024px) {
+      .group-container {
+        flex-wrap: wrap;
+        overflow-x: visible;
+      }
+    }
+    
+    .group-card {
+      min-width: 320px;
+      flex: 1;
+    }
+    
+    /* Hide scrollbar for Chrome, Safari and Opera */
+    .group-container::-webkit-scrollbar {
+      display: none;
+    }
+    
+    /* Hide scrollbar for IE, Edge and Firefox */
+    .group-container {
+      -ms-overflow-style: none;  /* IE and Edge */
+      scrollbar-width: none;  /* Firefox */
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-4 md:p-6">
+  <div class="max-w-[99rem] mx-auto">
+    <h1 class="text-3xl font-bold text-gray-800 mb-6 text-center">✂️ PastePal</h1>
+
+    <!-- Add group -->
+    <div class="flex w-full max-w-4xl gap-2 mb-6 mx-auto">
+      <input id="groupInput" type="text"
+        placeholder="Enter group name (e.g. Skills)"
+        class="flex-1 p-3 rounded-xl border border-gray-300 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+      <button onclick="addGroup()"
+        class="px-4 py-2 rounded-xl bg-indigo-500 text-white font-semibold hover:bg-indigo-600 shadow">
+        Add Group
+      </button>
+    </div>
+
+    <!-- Groups container with improved width handling -->
+    <div id="groupList" class="group-container"></div>
+  </div>
+
+  <script>
+    async function loadGroups() {
+      let res = await fetch("/groups");
+      let data = await res.json();
+      renderGroups(data);
+    }
+
+    async function addGroup() {
+      let input = document.getElementById("groupInput");
+      let name = input.value.trim();
+      if (!name) return;
+      await fetch("/groups", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name })
+      });
+      input.value = "";
+      loadGroups();
+    }
+
+    async function deleteGroup(name) {
+      await fetch(`/groups/${encodeURIComponent(name)}`, { method: "DELETE" });
+      loadGroups();
+    }
+
+    async function addSnippet(group) {
+      let input = document.getElementById(`snippetInput-${group}`);
+      let text = input.value.trim();
+      if (!text) return;
+      await fetch(`/groups/${encodeURIComponent(group)}/snippets`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text })
+      });
+      input.value = "";
+      loadGroups();
+    }
+
+    async function deleteSnippet(group, index) {
+      await fetch(`/groups/${encodeURIComponent(group)}/snippets/${index}`, { method: "DELETE" });
+      loadGroups();
+    }
+
+    function copySnippet(text) {
+      navigator.clipboard.writeText(text);
+      // Optional: Show a brief confirmation message
+      const toast = document.createElement('div');
+      toast.className = 'fixed bottom-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg';
+      toast.textContent = 'Copied to clipboard!';
+      document.body.appendChild(toast);
+      setTimeout(() => {
+        document.body.removeChild(toast);
+      }, 2000);
+    }
+
+    function renderGroups(groups) {
+      let container = document.getElementById("groupList");
+      container.innerHTML = "";
+
+      Object.keys(groups).forEach(group => {
+        let wrapper = document.createElement("div");
+        wrapper.className = "group-card bg-white p-5 rounded-2xl shadow";
+
+        let snippetsHTML = groups[group].map((text, idx) => `
+          <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+            <span class="text-gray-800 flex-1 pr-2 break-words">${text}</span>
+            <div class="flex gap-2 flex-shrink-0">
+              <button onclick="copySnippet('${text.replace(/'/g, "\\'")}')" class="text-indigo-500 hover:text-indigo-700" title="Copy">
+                <i data-lucide="copy" class="w-5 h-5"></i>
+              </button>
+              <button onclick="deleteSnippet('${group}', ${idx})" class="text-red-500 hover:text-red-700" title="Delete">
+                <i data-lucide="trash-2" class="w-5 h-5"></i>
+              </button>
+            </div>
+          </div>
+        `).join("");
+
+        wrapper.innerHTML = `
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-semibold text-gray-800 truncate" title="${group}">${group}</h2>
+            <button onclick="deleteGroup('${group}')" class="text-red-500 hover:text-red-700" title="Delete Group">
+              <i data-lucide="trash" class="w-5 h-5"></i>
+            </button>
+          </div>
+          <div class="flex gap-2 mb-4">
+            <input id="snippetInput-${group}" type="text" placeholder="Add snippet..."
+              class="flex-1 p-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+            <button onclick="addSnippet('${group}')"
+              class="px-3 py-2 rounded-lg bg-indigo-500 text-white hover:bg-indigo-600">
+              Add
+            </button>
+          </div>
+          <div class="space-y-3 max-h-80 overflow-auto">${snippetsHTML}</div>
+        `;
+
+        container.appendChild(wrapper);
+      });
+
+      lucide.createIcons();
+    }
+
+    loadGroups();
+  </script>
+</body>
+</html>
